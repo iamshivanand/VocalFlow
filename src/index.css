@@ -1,0 +1,202 @@
+/* ==========================================================================
+   VocalFlow Design System - Linear / Obsidian Aesthetic
+   ========================================================================== */
+
+:root {
+  --bg-deep: #080A0E;
+  --bg-surface: #0E1218;
+  --bg-card: #151922;
+  --bg-card-hover: #1C222E;
+  --bg-input: #12161F;
+  --bg-glass: rgba(18, 22, 31, 0.75);
+
+  --border-subtle: #202634;
+  --border-focus: #3D485E;
+  --border-accent: rgba(99, 102, 241, 0.4);
+
+  --text-primary: #F1F5F9;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
+  --text-faint: #475569;
+
+  /* Accent Colors */
+  --accent-primary: #6366F1;
+  --accent-primary-hover: #4F46E5;
+  --accent-primary-glow: rgba(99, 102, 241, 0.25);
+
+  --color-urgent: #EF4444;
+  --color-urgent-bg: rgba(239, 68, 68, 0.12);
+  --color-high: #F97316;
+  --color-high-bg: rgba(249, 115, 22, 0.12);
+  --color-medium: #EAB308;
+  --color-medium-bg: rgba(234, 179, 8, 0.12);
+  --color-low: #3B82F6;
+  --color-low-bg: rgba(59, 130, 246, 0.12);
+
+  --color-todo: #94A3B8;
+  --color-inprogress: #38BDF8;
+  --color-inreview: #A855F7;
+  --color-done: #10B981;
+  --color-backlog: #64748B;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.6);
+  --shadow-glow: 0 0 20px rgba(99, 102, 241, 0.2);
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-full: 9999px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: var(--bg-deep);
+  color: var(--text-primary);
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+code, kbd, pre, .font-mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-subtle);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-focus);
+}
+
+/* Glassmorphism */
+.glass-panel {
+  background: var(--bg-glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-subtle);
+}
+
+/* Keyframe Animations */
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(99, 102, 241, 0.3), inset 0 0 10px rgba(99, 102, 241, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(99, 102, 241, 0.6), inset 0 0 15px rgba(99, 102, 241, 0.25);
+  }
+}
+
+@keyframes voiceWave {
+  0%, 100% {
+    height: 8px;
+  }
+  50% {
+    height: 28px;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 2s infinite ease-in-out;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-down {
+  animation: slideDown 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Badge & Kbd styling */
+kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--text-secondary);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  box-shadow: inset 0 -1px 0 var(--border-subtle);
+}
+
+/* Drag & Drop Visual Indicators */
+.card-dragging {
+  opacity: 0.45;
+  transform: scale(0.98);
+  border-style: dashed !important;
+  border-color: var(--accent-primary) !important;
+}
+
+.column-drag-over {
+  background-color: rgba(99, 102, 241, 0.05) !important;
+  border-color: var(--accent-primary) !important;
+}
+
+/* Custom interactive inputs */
+input, select, textarea {
+  color: var(--text-primary);
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px var(--accent-primary-glow);
+}
+
+button {
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s ease-in-out;
+}
