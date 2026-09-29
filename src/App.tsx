@@ -5,9 +5,11 @@ import type {
   Status, 
   ViewMode, 
   FilterState, 
-  VoiceCommandResult 
+  VoiceCommandResult,
+  UserProfile
 } from './types/task';
 import { StorageService } from './utils/storage';
+import { api } from './utils/api';
 import { soundEffects } from './utils/audio';
 import { speechFeedback } from './utils/speech';
 import { useVoiceController } from './hooks/useVoiceController';
@@ -19,15 +21,19 @@ import { TaskDetailModal } from './components/TaskDetailModal';
 import { DailyStandupModal } from './components/DailyStandupModal';
 import { CommandPalette } from './components/CommandPalette';
 import { VoiceHelpModal } from './components/VoiceHelpModal';
+import { AgentKeysModal } from './components/AgentKeysModal';
+import { AuthModal } from './components/AuthModal';
 
 export const App: React.FC = () => {
   const [tasks, setTasks] = useState<TaskTicket[]>(() => StorageService.loadTasks());
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('kanban');
   const [filters, setFilters] = useState<FilterState>({
     search: '',
     priority: 'all',
     status: 'all',
     tag: 'all',
+    creatorType: 'all',
     sortBy: 'order',
     sortDirection: 'asc',
   });
@@ -37,12 +43,28 @@ export const App: React.FC = () => {
   const [isStandupOpen, setIsStandupOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [isAgentKeysOpen, setIsAgentKeysOpen] = useState(false);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
 
-  // Save to persistence
-  const updateTasksAndPersist = useCallback((newTasks: TaskTicket[]) => {
-    setTasks(newTasks);
-    StorageService.saveTasks(newTasks);
+  // Load live tasks from API
+  const refreshTasks = useCallback(async () => {
+    try {
+      const serverTasks = await api.getTasks();
+      setTasks(serverTasks);
+    } catch {
+      // Offline fallback already handled by StorageService
+    }
   }, []);
+
+  // Check auth & initial load
+  useEffect(() => {
+    refreshTasks();
+    api.getMe()
+      .then(res => {
+        if (res?.user) setCurrentUser(res.user);
+      })
+      .catch(() => {});
+  }, [refreshTasks]);
 
   // Celebration confetti when finishing tasks
   const fireConfetti = () => {
@@ -54,32 +76,48 @@ export const App: React.FC = () => {
     });
   };
 
-  // Create new task helper
-  const handleCreateTask = useCallback((partial?: Partial<TaskTicket>) => {
-    const newId = StorageService.getNextTaskId(tasks);
-    const newTask: TaskTicket = {
-      id: newId,
-      order: 0,
-      title: partial?.title || 'New Task',
-      description: partial?.description || '',
-      status: partial?.status || 'todo',
-      priority: partial?.priority || 'medium',
-      tags: partial?.tags || ['general'],
-      subtasks: partial?.subtasks || [],
-      dueDate: partial?.dueDate,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+  // Create new task helper (syncs with backend API)
+  const handleCreateTask = useCallback(async (partial?: Partial<TaskTicket>) => {
+    try {
+      const created = await api.createTask({
+        title: partial?.title || 'New Task',
+        description: partial?.description || '',
+        status: partial?.status || 'todo',
+        priority: partial?.priority || 'medium',
+        tags: partial?.tags || ['general'],
+        subtasks: partial?.subtasks || [],
+        dueDate: partial?.dueDate,
+      });
 
-    const nextTasks = [newTask, ...tasks];
-    updateTasksAndPersist(nextTasks);
-    return newTask;
-  }, [tasks, updateTasksAndPersist]);
+      setTasks(prev => [created, ...prev.filter(t => t.id !== created.id)]);
+      soundEffects.playSuccessChord();
+      return created;
+    } catch {
+      const fallbackId = StorageService.getNextTaskId(tasks);
+      const localTask: TaskTicket = {
+        id: fallbackId,
+        order: 0,
+        title: partial?.title || 'New Task',
+        description: partial?.description || '',
+        status: partial?.status || 'todo',
+        priority: partial?.priority || 'medium',
+        tags: partial?.tags || ['general'],
+        subtasks: partial?.subtasks || [],
+        dueDate: partial?.dueDate,
+        createdBy: { type: 'human', name: currentUser?.name || 'Local User' },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      setTasks(prev => [localTask, ...prev]);
+      StorageService.saveTasks([localTask, ...tasks]);
+      return localTask;
+    }
+  }, [tasks, currentUser]);
 
   // Voice Command Dispatcher
-  const handleVoiceCommand = useCallback((cmd: VoiceCommandResult) => {
+  const handleVoiceCommand = useCallback(async (cmd: VoiceCommandResult) => {
     if (cmd.intent === 'create' && cmd.taskData) {
-      handleCreateTask(cmd.taskData);
+      await handleCreateTask(cmd.taskData);
       soundEffects.playSuccessChord();
       return;
     }
@@ -91,13 +129,15 @@ export const App: React.FC = () => {
 
       if (matchIndex !== -1) {
         const target = tasks[matchIndex];
-        const updatedTasks = [...tasks];
-        updatedTasks[matchIndex] = {
-          ...target,
-          status: cmd.targetStatus,
-          updatedAt: new Date().toISOString(),
-        };
-        updateTasksAndPersist(updatedTasks);
+        try {
+          const updated = await api.updateTask(target.id, { status: cmd.targetStatus });
+          setTasks(prev => prev.map(t => t.id === updated.id ? updated : t));
+        } catch {
+          const updatedTasks = [...tasks];
+          updatedTasks[matchIndex] = { ...target, status: cmd.targetStatus, updatedAt: new Date().toISOString() };
+          setTasks(updatedTasks);
+          StorageService.saveTasks(updatedTasks);
+        }
         soundEffects.playSuccessChord();
         if (cmd.targetStatus === 'done') fireConfetti();
       } else {
@@ -113,23 +153,23 @@ export const App: React.FC = () => {
       );
       if (matchIndex !== -1) {
         const target = tasks[matchIndex];
-        const updatedTasks = [...tasks];
-        updatedTasks[matchIndex] = {
-          ...target,
-          priority: cmd.targetPriority,
-          updatedAt: new Date().toISOString(),
-        };
-        updateTasksAndPersist(updatedTasks);
+        try {
+          const updated = await api.updateTask(target.id, { priority: cmd.targetPriority });
+          setTasks(prev => prev.map(t => t.id === updated.id ? updated : t));
+        } catch {
+          const updatedTasks = [...tasks];
+          updatedTasks[matchIndex] = { ...target, priority: cmd.targetPriority, updatedAt: new Date().toISOString() };
+          setTasks(updatedTasks);
+          StorageService.saveTasks(updatedTasks);
+        }
         soundEffects.playSuccessChord();
       }
       return;
     }
 
     if (cmd.intent === 'delete' && cmd.targetTaskId) {
-      const updatedTasks = tasks.filter(
-        t => t.id.toLowerCase() !== cmd.targetTaskId?.toLowerCase()
-      );
-      updateTasksAndPersist(updatedTasks);
+      await api.deleteTask(cmd.targetTaskId);
+      setTasks(prev => prev.filter(t => t.id.toLowerCase() !== cmd.targetTaskId?.toLowerCase()));
       soundEffects.playSuccessChord();
       return;
     }
@@ -139,7 +179,7 @@ export const App: React.FC = () => {
       soundEffects.playSuccessChord();
       return;
     }
-  }, [tasks, handleCreateTask, updateTasksAndPersist]);
+  }, [tasks, handleCreateTask]);
 
   // Voice Hook
   const voice = useVoiceController({
@@ -148,21 +188,22 @@ export const App: React.FC = () => {
   });
 
   // Drag and drop card drop handler
-  const handleCardDrop = (taskId: string, targetStatus: Status) => {
+  const handleCardDrop = async (taskId: string, targetStatus: Status) => {
     const taskIndex = tasks.findIndex(t => t.id === taskId);
     if (taskIndex === -1) return;
 
     const task = tasks[taskIndex];
     if (task.status === targetStatus) return;
 
-    const updatedTasks = [...tasks];
-    updatedTasks[taskIndex] = {
-      ...task,
-      status: targetStatus,
-      updatedAt: new Date().toISOString(),
-    };
+    // Optimistic UI update
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: targetStatus, updatedAt: new Date().toISOString() } : t));
 
-    updateTasksAndPersist(updatedTasks);
+    try {
+      const updated = await api.updateTask(taskId, { status: targetStatus });
+      setTasks(prev => prev.map(t => t.id === taskId ? updated : t));
+    } catch {
+      // Revert if error
+    }
 
     if (targetStatus === 'done') {
       fireConfetti();
@@ -174,18 +215,27 @@ export const App: React.FC = () => {
     handleCardDrop(id, newStatus);
   };
 
-  const handleDeleteTask = (id: string) => {
-    const updated = tasks.filter(t => t.id !== id);
-    updateTasksAndPersist(updated);
+  const handleDeleteTask = async (id: string) => {
+    setTasks(prev => prev.filter(t => t.id !== id));
+    await api.deleteTask(id);
     soundEffects.playDropClick();
   };
 
-  const handleSaveTask = (updatedTask: TaskTicket) => {
-    const index = tasks.findIndex(t => t.id === updatedTask.id);
-    if (index !== -1) {
-      const updated = [...tasks];
-      updated[index] = updatedTask;
-      updateTasksAndPersist(updated);
+  const handleSaveTask = async (updatedTask: TaskTicket) => {
+    setTasks(prev => prev.map(t => t.id === updatedTask.id ? updatedTask : t));
+    try {
+      const saved = await api.updateTask(updatedTask.id, {
+        title: updatedTask.title,
+        description: updatedTask.description,
+        status: updatedTask.status,
+        priority: updatedTask.priority,
+        tags: updatedTask.tags,
+        subtasks: updatedTask.subtasks,
+        dueDate: updatedTask.dueDate,
+      });
+      setTasks(prev => prev.map(t => t.id === saved.id ? saved : t));
+    } catch {
+      // local cache
     }
   };
 
@@ -212,9 +262,10 @@ export const App: React.FC = () => {
 
       if (e.key === 'c' || e.key === 'C') {
         e.preventDefault();
-        const newTask = handleCreateTask();
-        setSelectedTask(newTask);
-        setIsDetailOpen(true);
+        handleCreateTask().then(newTask => {
+          setSelectedTask(newTask);
+          setIsDetailOpen(true);
+        });
       } else if (e.key === 'b' || e.key === 'B') {
         e.preventDefault();
         setIsStandupOpen(true);
@@ -235,8 +286,8 @@ export const App: React.FC = () => {
         tasks={tasks}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
-        onNewTaskClick={() => {
-          const newTask = handleCreateTask();
+        onNewTaskClick={async () => {
+          const newTask = await handleCreateTask();
           setSelectedTask(newTask);
           setIsDetailOpen(true);
         }}
@@ -262,6 +313,9 @@ export const App: React.FC = () => {
           setTasks(reset);
           soundEffects.playSuccessChord();
         }}
+        currentUser={currentUser}
+        onOpenAuth={() => setIsAuthOpen(true)}
+        onOpenAgentKeys={() => setIsAgentKeysOpen(true)}
       />
 
       {/* Main View Area */}
@@ -276,8 +330,8 @@ export const App: React.FC = () => {
             }}
             onDeleteTask={handleDeleteTask}
             onStatusChange={handleStatusChange}
-            onAddTaskToColumn={(status) => {
-              const newTask = handleCreateTask({ status });
+            onAddTaskToColumn={async (status) => {
+              const newTask = await handleCreateTask({ status });
               setSelectedTask(newTask);
               setIsDetailOpen(true);
             }}
@@ -310,7 +364,7 @@ export const App: React.FC = () => {
         onSimulateCommand={voice.simulateCommand}
       />
 
-      {/* Detail / Edit Modal */}
+      {/* Detail / Edit Modal with Audit History */}
       <TaskDetailModal
         task={selectedTask}
         isOpen={isDetailOpen}
@@ -342,8 +396,8 @@ export const App: React.FC = () => {
           setSelectedTask(task);
           setIsDetailOpen(true);
         }}
-        onNewTask={() => {
-          const newTask = handleCreateTask();
+        onNewTask={async () => {
+          const newTask = await handleCreateTask();
           setSelectedTask(newTask);
           setIsDetailOpen(true);
         }}
@@ -359,6 +413,28 @@ export const App: React.FC = () => {
         isOpen={isHelpOpen}
         onClose={() => setIsHelpOpen(false)}
         onSimulateCommand={voice.simulateCommand}
+      />
+
+      {/* AI Agents & MCP API Keys Modal */}
+      <AgentKeysModal
+        isOpen={isAgentKeysOpen}
+        onClose={() => setIsAgentKeysOpen(false)}
+      />
+
+      {/* Team Member Auth Modal */}
+      <AuthModal
+        isOpen={isAuthOpen}
+        onClose={() => setIsAuthOpen(false)}
+        currentUser={currentUser}
+        onLoginSuccess={(user) => {
+          setCurrentUser(user);
+          refreshTasks();
+        }}
+        onLogout={() => {
+          api.logout();
+          setCurrentUser(null);
+          refreshTasks();
+        }}
       />
     </div>
   );

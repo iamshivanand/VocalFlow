@@ -14,9 +14,11 @@ import {
   Flame, 
   Clock, 
   CheckCircle2,
-  Search
+  Search,
+  Bot,
+  User
 } from 'lucide-react';
-import type { ViewMode, TaskTicket } from '../types/task';
+import type { ViewMode, TaskTicket, UserProfile } from '../types/task';
 import { soundEffects } from '../utils/audio';
 
 interface HeaderProps {
@@ -33,6 +35,9 @@ interface HeaderProps {
   onExportBackup: () => void;
   onImportBackup: (file: File) => void;
   onResetData: () => void;
+  currentUser: UserProfile | null;
+  onOpenAuth: () => void;
+  onOpenAgentKeys: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -49,6 +54,9 @@ export const Header: React.FC<HeaderProps> = ({
   onExportBackup,
   onImportBackup,
   onResetData,
+  currentUser,
+  onOpenAuth,
+  onOpenAgentKeys,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isMuted, setIsMuted] = React.useState(false);
@@ -62,6 +70,7 @@ export const Header: React.FC<HeaderProps> = ({
   const todayStr = new Date().toISOString().split('T')[0];
   const dueTodayCount = tasks.filter(t => t.dueDate === todayStr && t.status !== 'done').length;
   const completedCount = tasks.filter(t => t.status === 'done').length;
+  const agentTasksCount = tasks.filter(t => t.createdBy?.type === 'agent').length;
 
   const handleToggleMute = () => {
     const nextMute = !isMuted;
@@ -124,9 +133,9 @@ export const Header: React.FC<HeaderProps> = ({
                   background: 'rgba(99, 102, 241, 0.15)',
                   color: '#818CF8',
                   border: '1px solid rgba(99, 102, 241, 0.3)',
-                }}>Solo Pro</span>
+                }}>Multi-Agent Hub</span>
               </div>
-              <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>Voice-Driven High Velocity Tracker</p>
+              <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>Voice & AI Agent Collaboration</p>
             </div>
           </div>
 
@@ -148,6 +157,15 @@ export const Header: React.FC<HeaderProps> = ({
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#38BDF8' }}>
               <span style={{ fontWeight: 700 }}>{activeCount}</span> active
             </div>
+            {agentTasksCount > 0 && (
+              <>
+                <span style={{ color: 'var(--border-subtle)' }}>•</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#C084FC' }}>
+                  <Bot size={13} />
+                  <span style={{ fontWeight: 700 }}>{agentTasksCount}</span> by AI
+                </div>
+              </>
+            )}
             {urgentCount > 0 && (
               <>
                 <span style={{ color: 'var(--border-subtle)' }}>•</span>
@@ -175,7 +193,7 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Center: Search & Filter */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: '1 1 240px', maxWidth: 360 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: '1 1 240px', maxWidth: 300 }}>
           <div style={{
             position: 'relative',
             width: '100%',
@@ -185,7 +203,7 @@ export const Header: React.FC<HeaderProps> = ({
             <Search size={14} style={{ position: 'absolute', left: 10, color: 'var(--text-muted)' }} />
             <input 
               type="text"
-              placeholder="Search tasks, tags, IDs... (Ctrl+K)"
+              placeholder="Search tasks, tags... (Ctrl+K)"
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
               style={{
@@ -216,8 +234,29 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Right: Actions, Voice HUD Trigger, Standup, View Switcher */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        {/* Right: Actions, AI Agents, Standup, View Switcher */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {/* AI Agents & MCP Keys Button */}
+          <button
+            onClick={onOpenAgentKeys}
+            title="Manage AI Agents & MCP API Keys"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 12px',
+              borderRadius: 'var(--radius-md)',
+              background: 'rgba(168, 85, 247, 0.12)',
+              border: '1px solid rgba(168, 85, 247, 0.35)',
+              color: '#C084FC',
+              fontSize: 12,
+              fontWeight: 600,
+            }}
+          >
+            <Bot size={14} />
+            <span>AI Agents</span>
+          </button>
+
           {/* Daily Standup Briefing Button */}
           <button
             onClick={onDailyStandupClick}
@@ -236,7 +275,7 @@ export const Header: React.FC<HeaderProps> = ({
             }}
           >
             <Sparkles size={14} />
-            <span>Daily Standup</span>
+            <span>Standup</span>
           </button>
 
           {/* Voice Microphone Toggle Button */}
@@ -247,7 +286,7 @@ export const Header: React.FC<HeaderProps> = ({
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '6px 14px',
+              padding: '6px 12px',
               borderRadius: 'var(--radius-md)',
               background: isListening 
                 ? 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)' 
@@ -259,8 +298,8 @@ export const Header: React.FC<HeaderProps> = ({
               boxShadow: isListening ? '0 0 16px rgba(239, 68, 68, 0.5)' : 'none',
             }}
           >
-            <Mic size={14} className={isListening ? 'animate-bounce' : ''} />
-            <span>{isListening ? 'Listening...' : 'Voice (Alt+V)'}</span>
+            <Mic size={14} />
+            <span>{isListening ? 'Listening' : 'Voice'}</span>
           </button>
 
           {/* View Mode Switcher */}
@@ -333,6 +372,31 @@ export const Header: React.FC<HeaderProps> = ({
             <span>New Task</span>
           </button>
 
+          {/* User Profile Button */}
+          <button
+            onClick={onOpenAuth}
+            title={currentUser ? `Logged in as ${currentUser.name} (${currentUser.role})` : "Team Member Sign In"}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '4px 10px',
+              borderRadius: 'var(--radius-md)',
+              background: currentUser ? 'var(--bg-card)' : 'rgba(56, 189, 248, 0.12)',
+              border: `1px solid ${currentUser ? 'var(--border-subtle)' : 'rgba(56, 189, 248, 0.3)'}`,
+              color: currentUser ? 'var(--text-primary)' : '#38BDF8',
+              fontSize: 12,
+              fontWeight: 600,
+            }}
+          >
+            {currentUser?.avatar ? (
+              <img src={currentUser.avatar} alt="avatar" style={{ width: 18, height: 18, borderRadius: '50%' }} />
+            ) : (
+              <User size={14} />
+            )}
+            <span>{currentUser ? currentUser.name.split(' ')[0] : 'Sign In'}</span>
+          </button>
+
           {/* Sound Mute/Unmute */}
           <button
             onClick={handleToggleMute}
@@ -392,7 +456,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }}
               >
                 <div style={{ padding: '6px 8px', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>
-                  LOCAL PERSISTENCE & DATA
+                  DATA & BACKUP
                 </div>
                 <button
                   onClick={() => {

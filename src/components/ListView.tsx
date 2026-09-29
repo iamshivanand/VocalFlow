@@ -11,7 +11,9 @@ import {
   Flame, 
   AlertTriangle, 
   Calendar,
-  ArrowUpDown
+  ArrowUpDown,
+  Bot,
+  User
 } from 'lucide-react';
 
 interface ListViewProps {
@@ -44,6 +46,9 @@ export const ListView: React.FC<ListViewProps> = ({
     if (filters.priority !== 'all' && task.priority !== filters.priority) return false;
     if (filters.status !== 'all' && task.status !== filters.status) return false;
     if (filters.tag !== 'all' && !task.tags?.includes(filters.tag)) return false;
+    if (filters.creatorType && filters.creatorType !== 'all') {
+      if (task.createdBy?.type !== filters.creatorType) return false;
+    }
     return true;
   });
 
@@ -116,6 +121,7 @@ export const ListView: React.FC<ListViewProps> = ({
                   <ArrowUpDown size={11} />
                 </button>
               </th>
+              <th style={{ padding: '12px 16px', width: 160 }}>Creator / Agent</th>
               <th style={{ padding: '12px 16px', width: 110 }}>
                 <button 
                   onClick={() => onSortChange('priority')}
@@ -141,168 +147,192 @@ export const ListView: React.FC<ListViewProps> = ({
           <tbody>
             {filteredTasks.length === 0 ? (
               <tr>
-                <td colSpan={7} style={{ padding: '36px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                <td colSpan={8} style={{ padding: '36px', textAlign: 'center', color: 'var(--text-muted)' }}>
                   No tasks found matching your filter criteria.
                 </td>
               </tr>
             ) : (
-              filteredTasks.map((task) => (
-                <tr
-                  key={task.id}
-                  onClick={() => onEditTask(task)}
-                  style={{
-                    borderBottom: '1px solid var(--border-subtle)',
-                    transition: 'background-color 0.12s ease',
-                    cursor: 'pointer',
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)'}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                >
-                  {/* Task Key */}
-                  <td style={{ padding: '12px 16px' }}>
-                    <span 
-                      className="font-mono"
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 600,
-                        color: 'var(--text-secondary)',
-                        padding: '2px 5px',
-                        borderRadius: 4,
-                        background: 'var(--bg-surface)',
-                        border: '1px solid var(--border-subtle)',
-                      }}
-                    >
-                      {task.id}
-                    </span>
-                  </td>
+              filteredTasks.map((task) => {
+                const isAgent = task.createdBy?.type === 'agent';
+                const creatorName = task.createdBy?.name || 'Team Member';
 
-                  {/* Status Dropdown */}
-                  <td style={{ padding: '12px 16px' }} onClick={(e) => e.stopPropagation()}>
-                    <select
-                      value={task.status}
-                      onChange={(e) => onStatusChange(task.id, e.target.value as Status)}
-                      style={{
-                        padding: '3px 8px',
-                        fontSize: 11,
-                        fontWeight: 600,
-                        borderRadius: 'var(--radius-full)',
-                        background: 'var(--bg-surface)',
-                        border: '1px solid var(--border-subtle)',
-                        color: 'var(--text-primary)',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <option value="backlog">Backlog</option>
-                      <option value="todo">To Do</option>
-                      <option value="in_progress">In Progress</option>
-                      <option value="in_review">In Review</option>
-                      <option value="done">Done</option>
-                    </select>
-                  </td>
+                return (
+                  <tr
+                    key={task.id}
+                    onClick={() => onEditTask(task)}
+                    style={{
+                      borderBottom: '1px solid var(--border-subtle)',
+                      transition: 'background-color 0.12s ease',
+                      cursor: 'pointer',
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    {/* Task Key */}
+                    <td style={{ padding: '12px 16px' }}>
+                      <span 
+                        className="font-mono"
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 600,
+                          color: 'var(--text-secondary)',
+                          padding: '2px 5px',
+                          borderRadius: 4,
+                          background: 'var(--bg-surface)',
+                          border: '1px solid var(--border-subtle)',
+                        }}
+                      >
+                        {task.id}
+                      </span>
+                    </td>
 
-                  {/* Title & Subtasks snippet */}
-                  <td style={{ padding: '12px 16px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {/* Status Dropdown */}
+                    <td style={{ padding: '12px 16px' }} onClick={(e) => e.stopPropagation()}>
+                      <select
+                        value={task.status}
+                        onChange={(e) => onStatusChange(task.id, e.target.value as Status)}
+                        style={{
+                          padding: '3px 8px',
+                          fontSize: 11,
+                          fontWeight: 600,
+                          borderRadius: 'var(--radius-full)',
+                          background: 'var(--bg-surface)',
+                          border: '1px solid var(--border-subtle)',
+                          color: 'var(--text-primary)',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <option value="backlog">Backlog</option>
+                        <option value="todo">To Do</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="in_review">In Review</option>
+                        <option value="done">Done</option>
+                      </select>
+                    </td>
+
+                    {/* Title & Subtasks snippet */}
+                    <td style={{ padding: '12px 16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{
+                          fontWeight: 600,
+                          color: task.status === 'done' ? 'var(--text-muted)' : 'var(--text-primary)',
+                          textDecoration: task.status === 'done' ? 'line-through' : 'none',
+                        }}>
+                          {task.title}
+                        </span>
+                        {task.subtasks?.length > 0 && (
+                          <span 
+                            className="font-mono"
+                            style={{
+                              fontSize: 10,
+                              padding: '1px 5px',
+                              borderRadius: 4,
+                              background: 'var(--bg-surface)',
+                              color: 'var(--text-muted)',
+                              border: '1px solid var(--border-subtle)',
+                            }}
+                          >
+                            {task.subtasks.filter(s => s.completed).length}/{task.subtasks.length}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Creator / Agent Attribution */}
+                    <td style={{ padding: '12px 16px' }}>
                       <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        fontSize: 11,
                         fontWeight: 600,
-                        color: task.status === 'done' ? 'var(--text-muted)' : 'var(--text-primary)',
-                        textDecoration: task.status === 'done' ? 'line-through' : 'none',
+                        padding: '2px 8px',
+                        borderRadius: 'var(--radius-full)',
+                        background: isAgent ? 'rgba(168, 85, 247, 0.15)' : 'rgba(56, 189, 248, 0.12)',
+                        color: isAgent ? '#C084FC' : '#38BDF8',
+                        border: `1px solid ${isAgent ? 'rgba(168, 85, 247, 0.35)' : 'rgba(56, 189, 248, 0.25)'}`,
                       }}>
-                        {task.title}
+                        {isAgent ? <Bot size={12} /> : <User size={12} />}
+                        <span>{isAgent ? `Agent: ${creatorName}` : creatorName}</span>
                       </span>
-                      {task.subtasks?.length > 0 && (
-                        <span 
-                          className="font-mono"
-                          style={{
-                            fontSize: 10,
-                            padding: '1px 5px',
-                            borderRadius: 4,
-                            background: 'var(--bg-surface)',
-                            color: 'var(--text-muted)',
-                            border: '1px solid var(--border-subtle)',
-                          }}
-                        >
-                          {task.subtasks.filter(s => s.completed).length}/{task.subtasks.length}
+                    </td>
+
+                    {/* Priority */}
+                    <td style={{ padding: '12px 16px' }}>
+                      {getPriorityBadge(task.priority)}
+                    </td>
+
+                    {/* Tags */}
+                    <td style={{ padding: '12px 16px' }}>
+                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                        {task.tags?.slice(0, 2).map((t, idx) => (
+                          <span
+                            key={idx}
+                            style={{
+                              fontSize: 10,
+                              padding: '1px 5px',
+                              borderRadius: 4,
+                              background: 'var(--bg-surface)',
+                              color: 'var(--text-secondary)',
+                              border: '1px solid var(--border-subtle)',
+                            }}
+                          >
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+
+                    {/* Due Date */}
+                    <td style={{ padding: '12px 16px', color: 'var(--text-secondary)', fontSize: 12 }}>
+                      {task.dueDate ? (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <Calendar size={12} color="var(--text-muted)" />
+                          <span>{task.dueDate}</span>
                         </span>
+                      ) : (
+                        <span style={{ color: 'var(--text-faint)' }}>—</span>
                       )}
-                    </div>
-                  </td>
+                    </td>
 
-                  {/* Priority */}
-                  <td style={{ padding: '12px 16px' }}>
-                    {getPriorityBadge(task.priority)}
-                  </td>
-
-                  {/* Tags */}
-                  <td style={{ padding: '12px 16px' }}>
-                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                      {task.tags?.slice(0, 2).map((t, idx) => (
-                        <span
-                          key={idx}
+                    {/* Actions */}
+                    <td style={{ padding: '12px 16px', textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+                        <button
+                          onClick={() => onEditTask(task)}
+                          title="Edit Task"
                           style={{
-                            fontSize: 10,
-                            padding: '1px 5px',
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--text-muted)',
+                            padding: 4,
                             borderRadius: 4,
-                            background: 'var(--bg-surface)',
-                            color: 'var(--text-secondary)',
-                            border: '1px solid var(--border-subtle)',
                           }}
+                          onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
+                          onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
                         >
-                          {t}
-                        </span>
-                      ))}
-                    </div>
-                  </td>
-
-                  {/* Due Date */}
-                  <td style={{ padding: '12px 16px', color: 'var(--text-secondary)', fontSize: 12 }}>
-                    {task.dueDate ? (
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <Calendar size={12} color="var(--text-muted)" />
-                        <span>{task.dueDate}</span>
-                      </span>
-                    ) : (
-                      <span style={{ color: 'var(--text-faint)' }}>—</span>
-                    )}
-                  </td>
-
-                  {/* Actions */}
-                  <td style={{ padding: '12px 16px', textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
-                      <button
-                        onClick={() => onEditTask(task)}
-                        title="Edit Task"
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: 'var(--text-muted)',
-                          padding: 4,
-                          borderRadius: 4,
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
-                        onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
-                      >
-                        <Edit3 size={14} />
-                      </button>
-                      <button
-                        onClick={() => onDeleteTask(task.id)}
-                        title="Delete Task"
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: 'var(--text-muted)',
-                          padding: 4,
-                          borderRadius: 4,
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.color = '#EF4444'}
-                        onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
+                          <Edit3 size={14} />
+                        </button>
+                        <button
+                          onClick={() => onDeleteTask(task.id)}
+                          title="Delete Task"
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--text-muted)',
+                            padding: 4,
+                            borderRadius: 4,
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.color = '#EF4444'}
+                          onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>

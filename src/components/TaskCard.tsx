@@ -6,7 +6,9 @@ import {
   Tag as TagIcon, 
   MoreHorizontal, 
   Trash2,
-  Calendar
+  Calendar,
+  Bot,
+  User
 } from 'lucide-react';
 import type { TaskTicket, Priority, Status } from '../types/task';
 import { soundEffects } from '../utils/audio';
@@ -124,6 +126,10 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   const dueInfo = getDueDateInfo(task.dueDate);
   const totalSubtasks = task.subtasks?.length || 0;
   const completedSubtasks = task.subtasks?.filter(s => s.completed).length || 0;
+
+  // Actor attribution
+  const isAgent = task.createdBy?.type === 'agent';
+  const creatorName = task.createdBy?.name || 'Team Member';
 
   return (
     <div
@@ -315,6 +321,26 @@ export const TaskCard: React.FC<TaskCardProps> = ({
           </div>
         </div>
       )}
+
+      {/* Creator Attribution Pill (Agent vs Human) */}
+      <div style={{ marginBottom: '10px' }}>
+        <span style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 4,
+          fontSize: 10,
+          fontWeight: 600,
+          padding: '2px 7px',
+          borderRadius: 'var(--radius-full)',
+          background: isAgent ? 'rgba(168, 85, 247, 0.15)' : 'rgba(56, 189, 248, 0.12)',
+          color: isAgent ? '#C084FC' : '#38BDF8',
+          border: `1px solid ${isAgent ? 'rgba(168, 85, 247, 0.35)' : 'rgba(56, 189, 248, 0.25)'}`,
+          boxShadow: isAgent ? '0 0 10px rgba(168, 85, 247, 0.15)' : 'none',
+        }}>
+          {isAgent ? <Bot size={11} /> : <User size={11} />}
+          <span>{isAgent ? `Agent: ${creatorName}` : creatorName}</span>
+        </span>
+      </div>
 
       {/* Footer: Tags and Due Date Badge */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
